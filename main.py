@@ -10,50 +10,12 @@ import threading
 from skimage import io
 
 
-# global points coordinate
-coord0 = np.array([[[0.37670793358295884, 0.1450980392156862, 0.06666666666666665], [0.36984926, 0.25788742, 0.05303467]],
-                   [[0.03529411764705892, 0.15294117647058814, 0.3767331437165149], [0.027450980392156765, 0.08235294117647052, 0.3784762524549461]],
-                   [[0.019607843137254832, -0.006835167338173909, 0.37254901960784315], [0.015053239, -0.09474977, 0.3754375]],
-                   [[0.37465164084608205, 0.15294117647058814, 0.050980392156862786], [0.47886518, 0.10046293, 0.022452282]]])
-
-coord1 = np.array([[[-0.5746937322446048, 0.9607843137254901, -0.019607843137254943],[-0.4321638, 0.99389905, -0.02291296]],
-                   [[-0.5294117647058824, 0.45882352941176463, 0.685554365270312],[-0.4269995167413214, 0.46666666666666656, 0.7019607843137254]],
-                   [[0.6433290319036518, 0.13725490196078427, 0.6784313725490196],[0.6515949383900947, 0.13725490196078427, 0.5764705882352941]],
-                   [[-0.019607843137254943, 0.7295395201275006, 0.7019607843137254],[-0.0117647058823529, 0.6705882352941177, 0.7080237083962153]]])
-
-coord2 = np.array([[[-0.6, 0.9396358916769973, -0.050980392156862786],[-0.50043005, 0.96048087, -0.07294896]],
-                  [[-0.584313725490196, -0.9372549019607843, 0.6088443311411176],[-0.44125116, -0.92913884, 0.6377995]]])
-
-coord3 = np.array([[[0.7855891090110902, -0.48235294117647054, 0.03529411764705892],[0.7849249253143464, -0.388235294117647, 0.03529411764705892]],
-                  [[0.7822867418371218, 0.3803921568627451, 0.7254901960784315],[0.7844279949547688, 0.37254901960784315, 0.8196078431372549]],
-                   [[0.780392156862745, 0.1055819936261968, 0.050980392156862786],[0.7833097481120848, 0.019607843137254832, 0.04313725490196085]]])
-
-coord4 = np.array([[[-0.5502471024611093, 0.9529411764705882, -0.019607843137254943],[-0.40328434, 0.98134863, -0.022581317]],
-                  [[0.6235294117647059, -0.5618531629667611, -0.0117647058823529],[0.610758, -0.6575152, -0.0067606196]]])
-
-coord5 = np.array([[[0.3176470588235294, -0.45882352941176474, 0.18286770711388556], [0.31836328453498486, -0.45882352941176474, 0.2549019607843137]]])
-
-coord6 = np.array([[[0.03529411764705892, 0.16355255639967758, 0.3019607843137255],[0.035023257, 0.06932815, 0.30845296]]])
-
-coord7 = np.array([[[-0.7803921568627451, -0.9215686274509804, 0.827264931834111],[-0.61606824, -0.9226783, 0.82864094]],
-                   [[0.09019607843137245, -0.1686274509803921, 0.8136965670078824],[0.088657185, -0.26755452, 0.8193318]],
-                   [[-0.584313725490196, 0.607843137254902, 0.8229115737542192],[-0.6627450980392157, 0.5897420655441326, 0.8274509803921568]]])
-
-coord8 = np.array([[[-0.6293484629480813, 0.9137254901960785, -0.06666666666666665],[-0.47340366, 0.93652105, -0.07335004]]])
-
-coord9 = np.array([[[0.08235294117647052, -0.10588235294117643, 0.47323799932816546],[0.07425436, -0.18789564, 0.4774843]],
-                  [[-0.4549887380255814, 0.7960784313725491, 0.0117647058823529],[-0.42148963, 0.6957268, 0.018102137]],
-                   [[0.5294117647058822, -0.008207950429874877, -0.019607843137254943],[0.4509803921568627, -0.00010042781378427623, -0.019607843137254943]]])
-total_coord = [coord0, coord1, coord2, coord3, coord4, coord5, coord6, coord7, coord8, coord9]
-
-
 class App:
-
     def __init__(self):
         self._id = 0
         gui.Application.instance.initialize()
 
-        self.window = gui.Application.instance.create_window("DragShape", 800, 600)
+        self.window = gui.Application.instance.create_window("iShapEditing", 800, 600)
         w = self.window
         em = w.theme.font_size
 
@@ -155,15 +117,11 @@ class App:
         self._progress_panel.add_child(self._progres_label)
         self._progress_panel.add_child(self._progres_bar)
         self._drag_panel.add_child(self._progress_panel)
-
-        self._drag_fix_panel = gui.Horiz()
-        self._fix_pnt = gui.NumberEdit(gui.NumberEdit.INT)
-        self._fix_pnt.int_value = 0
-        self._fix_pnt_btn = gui.Button('draw')
-        self._fix_pnt_btn.vertical_padding_em = 0
-        # self._drag_fix_panel.add_child(self._fix_pnt)
-        # self._drag_fix_panel.add_child(self._fix_pnt_btn)
-        # self._drag_panel.add_child(self._drag_fix_panel)
+        self._vedit = gui.VectorEdit()
+        self._vedit.vector_value = [0, 0, 0]
+        self._drag_panel.add_child(self._vedit)
+        self._vedit_btn = gui.Button('Draw')
+        self._drag_panel.add_child(self._vedit_btn)
 
         # Capture
         self._capture_panel = gui.CollapsableVert('Capture', 0)
@@ -192,6 +150,7 @@ class App:
             [1, 1, 1],  # color
             100000)  # intensity
         self._scene.scene.scene.enable_sun_light(True)
+        self._scene.scene.show_axes(True)
         self.drag_stuff = DragStuff()
 
         # Callback
@@ -207,7 +166,7 @@ class App:
         self._inversion_mesh.set_on_clicked(self._inversion_callback)
         self._train_start_btn.set_on_clicked(self._train_start_callback)
         self._train_stop_btn.set_on_clicked(self._train_stop_callback)
-        self._fix_pnt_btn.set_on_clicked(self._fix_pnt_callback)
+        self._vedit_btn.set_on_clicked(self._on_vedit)
 
         # parameters
         self.source_pnt = []
@@ -221,6 +180,7 @@ class App:
         self._print_label_text = ''
         self._progress_value = 0.
         self.abs_dir = os.getcwd()
+        self.real_path = None
 
         w.set_on_layout(self._on_layout)
         w.add_child(self._scene)
@@ -235,15 +195,17 @@ class App:
         self._panel.frame = gui.Rect(r.get_right() - panel_width, r.y, panel_width, panel_height)
         self._scene.frame = gui.Rect(r.x, r.y, r.width-panel_width, r.height)
 
-    def _fix_pnt_callback(self):
-        self._points_clear_callback()
-        num = total_coord[self._latent_view.int_value].shape[0]
-        pnt = total_coord[self._latent_view.int_value][self._fix_pnt.int_value % num]  # 2*3
-        self.source_pnt.append(pnt[0])
-        self.target_pnt.append(pnt[1])
-        self.draw_point(pnt[0], rgb=(1, 0, 0), name="start1")
-        self.draw_point(pnt[1], rgb=(0, 0, 1), name="end1" + str(len(self.target_pnt)))
-        self.draw_arrow(self.source_pnt[-1], self.target_pnt[-1], name='line1')
+    def _on_vedit(self):
+        if self.draw_source_flag:
+            source_point = self._vedit.vector_value
+            self.source_pnt.append(source_point)
+            self.draw_point(source_point, rgb=(1, 0, 0), name="start" + str(len(self.source_pnt)))
+        else:
+            target_point = self.source_pnt[-1] + self._vedit.vector_value
+            self.target_pnt.append(target_point)
+            self.draw_point(target_point, rgb=(0, 0, 1), name="end" + str(len(self.target_pnt)))
+            self.draw_arrow(self.source_pnt[-1], self.target_pnt[-1], name='line' + str(len(self.source_pnt)))
+        self.draw_source_flag = not self.draw_source_flag
 
     def _print_label_text_fun(self):
         self._print_label.text = self._print_label_text
@@ -327,10 +289,23 @@ class App:
     def _reset_mesh_callback(self):
         if self.drag_stuff.mesh0 is None:
             mesh = copy.deepcopy(self.mesh)
-            self.clear_all()
+            name_list = (['start%d' % i for i in range(1, len(self.source_pnt) + 1)] +
+                         ['end%d' % i for i in range(1, len(self.target_pnt) + 1)] +
+                         ['line%d' % i for i in range(1, len(self.target_pnt) + 1)])
+            # self.remove_geometry_name(name_list)
+            # self.source_pnt.clear()
+            # self.target_pnt.clear()
+            # self.draw_source_flag = True
             self.update_mesh(mesh)
         else:
-            self.clear_all()
+            name_list = (['start%d' % i for i in range(1, len(self.source_pnt) + 1)] +
+                         ['end%d' % i for i in range(1, len(self.target_pnt) + 1)] +
+                         ['line%d' % i for i in range(1, len(self.target_pnt) + 1)])
+            # self.remove_geometry_name(name_list)
+            # self.source_pnt.clear()
+            # self.target_pnt.clear()
+            # self.draw_source_flag = True
+
             self.update_mesh(self.drag_stuff.mesh0)
             self.drag_stuff.reset_params()
 
@@ -390,7 +365,7 @@ class App:
         self.window.close_dialog()
 
     def _save_mesh_done(self, filename):
-        if self.mesh.has_vertex_normals() or self.mesh.has_triangle_normals:
+        if self.mesh.has_vertex_normals() or self.mesh.has_triangle_normals():
             new_mesh = copy.deepcopy(self.mesh)
             new_mesh.triangle_normals = o3d.utility.Vector3dVector([])
             new_mesh.vertex_normals = o3d.utility.Vector3dVector([])
@@ -415,9 +390,13 @@ class App:
             drag.vertex_colors = o3d.utility.Vector3dVector(np.concatenate(c_total, axis=0))
             drag.triangles = o3d.utility.Vector3iVector(np.concatenate(f_total, axis=0))
             dir_, _ = os.path.splitext(filename)
-            file = dir_.split("\\")[-1][-2:]
+            file = dir_.split("\\")[-1][-2:]   # the name is in the format: editxy: xy is the id
             o3d.io.write_triangle_mesh(os.path.join(os.path.dirname(filename), 'drag'+file+'.obj'), drag)
-        # o3d.io.write_triangle_mesh(filename, self.mesh, write_vertex_colors=False, write_vertex_normals=False)
+            with open(os.path.join(os.path.dirname(filename), 'EditLog'), 'a+') as f:
+                f.write('Edit'+file+':'+'\n')
+                for i in range(len(self.source_pnt)):
+                    f.write(str(self.source_pnt[i].tolist()) + '  ' + str(self.target_pnt[i].tolist()) + '\n')
+                f.write('Scale:' + self._grads_scale_edit.text_value + '   Lambda:' + self._lambda_edit.text_value + '\n\n')
         self.window.close_dialog()
         os.chdir(self.abs_dir)
 
@@ -448,6 +427,7 @@ class App:
             self.clear_all()
             self.drag_stuff.clear_params()
             self.update_mesh(mesh)
+            self.real_path = os.path.dirname(filename)
             self.window.close_dialog()
             os.chdir(self.abs_dir)
         else:
@@ -458,7 +438,11 @@ class App:
         gui.Application.instance.post_to_main_thread(self.window, self._print_label_text_fun)
 
         def mesh_inversion():
-            t = threading.Thread(target=self.drag_stuff.train_triplane, args=(self.mesh, None, False))
+            if os.path.isfile(os.path.join(self.real_path, 'tri_feat.npy')):
+                t = threading.Thread(target=self.drag_stuff.train_triplane, kwargs={"tri_feat_path":os.path.join(self.real_path, 'tri_feat.npy')})
+            else:
+                t = threading.Thread(target=self.drag_stuff.train_triplane,
+                                     kwargs={"mesh": self.mesh})
             t.start()
             t.join()
             self._print_label_text = 'Inversion Done!'
@@ -517,7 +501,6 @@ class App:
                     picked_point = np.asarray(self.mesh.vertices)[idx]
                     if self.draw_source_flag:
                         self.source_depth = depth
-                print("pick point:", picked_point[0], picked_point[1], picked_point[2])
 
                 if self.draw_source_flag:
                     self.source_pnt.append(picked_point)
@@ -526,7 +509,7 @@ class App:
                     self.target_pnt.append(picked_point)
                     self.draw_point(picked_point, rgb=(0, 0, 1), name="end" + str(len(self.target_pnt)))
                     self.draw_arrow(self.source_pnt[-1], self.target_pnt[-1], name='line' + str(len(self.source_pnt)))
-
+                print("pick point:", picked_point[0], picked_point[1], picked_point[2])
                 self.draw_source_flag = not self.draw_source_flag
 
             self._scene.scene.scene.render_to_depth_image(depth_callback)

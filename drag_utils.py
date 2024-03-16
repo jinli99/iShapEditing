@@ -36,7 +36,7 @@ def get_args():
     parser.add_argument('--feat_layer', type=int, default=8,
                         help='Index of features layer(7-9).', required=False)
     parser.add_argument('--loss_type', type=str, default='l2')
-    parser.add_argument('--points_size', type=int, default=400000,
+    parser.add_argument('--points_size', type=int, default=200000,
                         help='Size of training points.')
     parser.add_argument('--points_uniform_ratio', type=float, default=0.5,
                         help='Ratio of points to sample uniformly in bounding box.')
@@ -197,7 +197,7 @@ class DragStuff:
         self.latent_code = None
         self.w0 = None
         self.w = None
-        self.r1 = 7  # motion loss
+        self.r1 = 12  # motion loss
         self.offset1 = make_offsets(self.r1, self.device)
         self.voxel_size = 2. / self.args.shape_resolution
         self.train_flag = True
@@ -263,7 +263,6 @@ class DragStuff:
             img = th.randn((1, 96, self.args.image_size, self.args.image_size), dtype=next(
                 iter(self.model.parameters())).dtype, device=self.device)
         self.latent_code = img.clone().detach()
-        # np.save('noise.npy', img.cpu().numpy())
         with (th.no_grad()):
             for i in range(self.args.num_steps-1, -1, -1):
                 t = th.tensor([i], device=img.device)
@@ -276,24 +275,28 @@ class DragStuff:
                 if i < self.args.w_time:
                     self.feature_guidance.append(resize_feat_align(outs["inter_feat"]).clone().detach().cpu())
             assert len(self.feature_guidance) == self.args.w_time
-            # np.save('tri_feat.npy', img.cpu().numpy())
             self.mesh0 = self.get_mesh(tri_feat=img)
             self.mesh = copy.deepcopy(self.mesh0)
             return img
 
-    def get_mesh(self, tri_feat=None, img=None, t=None):
+    def get_mesh(self, tri_feat=None, img=None, t=0):
         with th.no_grad():
             if tri_feat is None:
                 img = img if img is not None else (
                     th.randn((1, 96, self.args.image_size, self.args.image_size)).to(self.device))
-                tri_feat = synthesize_latent(
-                    self.model, self.diffusion, self.args, t1=t, img=img, clip_denoised=self.args.clip_denoised)["img"]
+                # tri_feat = synthesize_latent(
+                #     self.model, self.diffusion, self.args, t1=t, img=img, clip_denoised=self.args.clip_denoised)["img"]
+                with th.no_grad():
+                    for i in range(t - 1, -1, -1):
+                        t1 = th.tensor([i], device=img.device)
+                        outs = self.diffusion.p_sample_guidance(self.model, img, t1, feat_layer=self.args.feat_layer,
+                                                                clip_denoised=self.args.clip_denoised)
+                        img = outs["sample"]
+                    tri_feat = img
             tri_feat = (tri_feat * self.range + self.middle).reshape(3, 32, self.args.image_size, self.args.image_size)
-            # tri_feat = tri_feat.reshape(3, 32, self.args.image_size, self.args.image_size)
             for i in range(3):
                 self.decoder.embeddings[i] = tri_feat[[i]]
             mesh = create_obj_o3d(self.decoder, 0, res=self.args.shape_resolution)
-            # o3d.io.write_triangle_mesh('1.obj', mesh)
             return mesh.filter_smooth_simple(number_of_iterations=10)
 
     def training(self, sources=None, targets=None, scale=600, cof=0.2):
@@ -393,19 +396,18 @@ class DragStuff:
                 # img = outs["sample"].clone().detach()
             if not i % 10:
                 print("Step%d done!" % i, grads1.max().item(), grads1.min().item(), grads1.norm().item(), loss.item())
-
-            yield 1 - i/(self.args.w_time-1.)
-
+            yield 1 - i / (self.args.w_time - 1.)
         self.mesh = self.get_mesh(img=img, t=stop_time)
 
-    def train_triplane(self, mesh=None, mesh_path=None, center_mesh=True, path=""):
+    def train_triplane(self, mesh=None, mesh_path=None, center_mesh=True, tri_feat_path=None, path=""):
 
-        # with th.no_grad():
-        #     img = th.tensor(np.load('datas/real-shape-edit/chairs/test1/test1_tri_feat.npy'), device=self.device)
-        #     self.mesh = self.get_mesh(img)
-        #     self.mesh0 = copy.deepcopy(self.mesh)
-        #     self.latent_inversion(tri_feat=img)
-        #     return
+        if tri_feat_path is not None:
+            with th.no_grad():
+                img = th.tensor(np.load(tri_feat_path), device=self.device)
+                self.mesh = self.get_mesh(img)
+                self.mesh0 = copy.deepcopy(self.mesh)
+                self.latent_inversion(tri_feat=img)
+                return
 
         if mesh is not None:
             mesh = mesh
@@ -441,7 +443,7 @@ class DragStuff:
         # return
 
         datas = OccupancyDatas(total_points, occupancies.reshape(-1, 1))
-        dataloader = th.utils.data.DataLoader(datas, batch_size=80000, shuffle=True, num_workers=1)
+        dataloader = th.utils.data.DataLoader(datas, batch_size=40000, shuffle=True, num_workers=1)
 
         # classifier guidance based on predict x_start
         scale = 600
@@ -453,9 +455,9 @@ class DragStuff:
             img.requires_grad_(True)
             outs = self.diffusion.p_sample_guidance(self.model, img, th.tensor([i], device=self.device))
             predict_x0 = outs["pred_xstart"]
-            # if i < 110 and not i%20:
+            # if i in [120]:
             #     o3d.io.write_triangle_mesh('mesh%d.obj' % i, self.get_mesh(predict_x0.clone().detach()))
-                # np.save('img%d.npy'%i, img.cpu().detach().numpy())
+            #     np.save('img%d.npy'%i, predict_x0.cpu().detach().numpy())
             predict_x0 = (predict_x0 * self.range + self.middle).reshape(
                 3, 32, self.args.image_size, self.args.image_size)
             for j in range(3):
@@ -478,11 +480,10 @@ class DragStuff:
         with th.no_grad():
             np.save(os.path.join(path, 'tri_feat.npy'), img.cpu().numpy())
         self.clear_params()
-
         self.mesh = self.get_mesh(tri_feat=img)
         self.mesh0 = copy.deepcopy(self.mesh)
         o3d.io.write_triangle_mesh(os.path.join(path, 'mesh_recon.obj'), self.mesh0)
-        # self.latent_inversion(tri_feat=img)
+        self.latent_inversion(tri_feat=img)
 
     def latent_inversion(self, tri_feat, name='noise.npy'):
         with th.no_grad():
@@ -524,46 +525,32 @@ class DragStuff:
 def main():
 
     drag = DragStuff()
-    drag.update_model_params('./models/chairs')
-    drag.train_triplane(mesh_path='test.obj', center_mesh=False)
-    # drag.train_triplane_opt(mesh_path='test0.obj')
-    # drag.test(mesh_path='test6_scale.obj')
-    # noise = th.tensor(np.load('noise.npy'))
+    drag.update_model_params('./models/cars')
+    # drag.train_triplane_opt(mesh_path='./datas/ablation/opt-based/test1/test.obj')
+    drag.train_triplane(mesh_path='test5.obj', center_mesh=False)
     # drag.update_latent_params()
     # o3d.io.write_triangle_mesh('mesh.obj', drag.get_mesh(tri_feat=th.tensor(np.load('tri_feat.npy'), device=drag.device)))
     # drag.latent_inversion_feat(tri_feat=th.tensor(np.load('tri_feat.npy'), device=drag.device))
 
-    """Test for real shape reconstruct based on classifier-guidance method!!! 2024/01/01"""
-    # path = "/media/jing/I/datas"
-    # for name in os.listdir(path):
-    #     if name == 'chairs':
-    #         t = 10
-    #     elif name == 'cars':
-    #         t = 5
-    #     elif name == 'planes':
-    #         t = 5
-    #     else:
-    #         raise NotImplementedError("Unknown data name!")
-    #     for file in os.listdir(os.path.join(path, name)):
-    #         mesh_path = os.path.join(path, name, file)
-    #         # if os.path.exists(os.path.join(mesh_path, "mesh_scale_smooth.obj")):
-    #         #     continue
-    #         # mesh = o3d.io.read_triangle_mesh(os.path.join(mesh_path, "mesh_scale.obj")).filter_smooth_simple(number_of_iterations=t)
-    #         mesh = o3d.io.read_triangle_mesh(os.path.join(mesh_path, "mesh_scale_smooth.obj")).remove_degenerate_triangles()
-    #         o3d.io.write_triangle_mesh(os.path.join(mesh_path, "mesh_scale_smooth.obj"), mesh)
-    #         print(mesh_path, "done!")
-
     """Test for mesh reconstruction on real shape datasets"""
-    # name_list = ["1a74a83fa6d24b3cacd67ce2c72c02e", "1a74a83fa6d24b3cacd67ce2c72c02e",
-    #              "1a38407b3036795d19fb4103277a6b93", "1ab8a3b55c14a7b27eaeab1f0c9120b7",
-    #              "1ac6531a337de85f2f7628d6bf38bcc4", "1ace72a88565df8e56bd8571ad86331a",
-    #              "1aeb17f89e1bea954c6deb9ede0648df",
-    #              "1b5e876f3559c231532a8e162f399205", "1b5fc54e45c8768490ad276cd2af3a4",
-    #              "1b7ba5484399d36bc5e50b867ca2d0b9"]
-    # name_list = ["1b7ba5484399d36bc5e50b867ca2d0b9"]
-    # path = "/media/jing/I/datas/chairs"
+    # name_list = ["1b67a3a1101a9acb905477d2a8504646", "1b938d400e1a340b17b431cae0dd70ed", "1b05971a4373c7d2463600025db2266",
+    #              "1b80175cc081f3e44e4975e87c20ce53", "1b81441b7e597235d61420a53a0cb96d", "1b92525f3945f486fe24b6f1cb4a9319"]   # chairs id
+
+    # name_list = ["1a0bc9ab92c915167ae33d942430658c", "1a0c91c02ef35fbe68f60a737d94994a", "1a1dcd236a1e6133860800e6696b8284",
+    #              "1a1de15e572e039df085b75b20c2db33", "1a3b35be7a0acb2d9f2366ce3e663402", "1a4ef4a2a639f172f13d1237e1429e9e",
+    #              "1a7b9697be903334b99755e16c4a9d21", "1a7d2c9d3a084885afa2ee0adc62d22", "1a15dff06b073d7282a2d03a8c21b1d6",
+    #              "1a48d03a977a6f0aeda0253452893d75", "1a56d596c77ad5936fa87a658faf1d26", "1a63a260180f11baafe717997470b28d",
+    #              "1a64bf1e658652ddb11647ffa4306609", "1a83a525ae32afcf622ac2f50deaba1f", "1a87a329781b15763820d8f180caa23a",
+    #              "1a759c0122847d985c08d463d5424c88", "1a4337da899da1936909632a947fc19b", "1a7125aefa9af6b6597505fd7d99b613"]   # cars id
+    # name_list = ["1a30678509a1fdfa7fb5267a071ae23a", "1a19271683597db4fe7e6f8a8e38f62d", "1ab80bc91a45b7d0a31091d2234b9f68",
+    #              "1acfbda4ce0ec524bedced414fad522f", "1ad321f067ffbe7e51a95aaa6caba1d3", "1ae184691a39e3d3e0e8bce75d28b114"]
+
+    # name_list = ["1b90541c9d95d65d2b48e2e94b50fd01", "1b171503b1d0a074bc0909d98a1ff2b4", "1ba18539803c12aae75e6a02e772bcee",
+    #              "1bba3fb413b93890947bbeb9022263b8", "1bcbb0267f5f1d53c6c0edf9d2d89150", "1bdeb4aaa0aaea4b4f95630cc18536e0",
+    #              "1bea1445065705eb37abdc1aa610476c", "1beb0776148870d4c511571426f8b16d", "1c2e9dedbcf511e616a077c4c0fc1181"]    # planes
+    # path = "/media/jing/I/datas/airplanes"
     # drag = DragStuff()
-    # drag.update_model_params('./models/chairs')
+    # drag.update_model_params('./models/planes')
     # for name in name_list:
     #     mesh_path = os.path.join(path, name)
     #     drag.train_triplane(mesh_path=os.path.join(mesh_path, 'mesh_scale_smooth.obj'), center_mesh=False, path=mesh_path)

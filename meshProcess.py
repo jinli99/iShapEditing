@@ -15,11 +15,13 @@ def calc_implicit_field(mesh, points, sdf=True):
 
 
 # calculate the chamfer distance between two meshes
-def calc_chamfer(filename_gt, filename_pre, point_num):
+def calc_chamfer(mesh_a, mesh_b, point_num):
 
-    mesh_a = o3d.io.read_triangle_mesh(filename_gt)
+    if isinstance(mesh_a, str):
+        mesh_a = o3d.io.read_triangle_mesh(mesh_a)
+    if isinstance(mesh_b, str):
+        mesh_b = o3d.io.read_triangle_mesh(mesh_b)
     points_a = np.asarray(mesh_a.sample_points_uniformly(point_num).points, dtype=np.float32)
-    mesh_b = o3d.io.read_triangle_mesh(filename_pre)
     points_b = np.asarray(mesh_b.sample_points_uniformly(point_num).points, dtype=np.float32)
 
     kdtree_a = cKDTree(points_a)
@@ -34,12 +36,13 @@ def calc_chamfer(filename_gt, filename_pre, point_num):
 
 
 # calculate the hausdorff distance between two meshes
-def calc_hausdorff(filename_gt, filename_pre, point_num):
-    # scale = 1.0e5  # scale the result for better display
+def calc_hausdorff(mesh_a, mesh_b, point_num):
 
-    mesh_a = o3d.io.read_triangle_mesh(filename_gt)
+    if isinstance(mesh_a, str):
+        mesh_a = o3d.io.read_triangle_mesh(mesh_a)
+    if isinstance(mesh_b, str):
+        mesh_b = o3d.io.read_triangle_mesh(mesh_b)
     points_a = np.asarray(mesh_a.sample_points_uniformly(point_num).points, dtype=np.float32)
-    mesh_b = o3d.io.read_triangle_mesh(filename_pre)
     points_b = np.asarray(mesh_b.sample_points_uniformly(point_num).points, dtype=np.float32)
 
     kdtree_a = cKDTree(points_a)
@@ -53,53 +56,53 @@ def calc_hausdorff(filename_gt, filename_pre, point_num):
     return max(hausdorff_a, hausdorff_b)
 
 
-def calc_iou(filename_gt, filename_pre, point_num):
-    mesh_a = o3d.io.read_triangle_mesh(filename_gt)
-    mesh_b = o3d.io.read_triangle_mesh(filename_pre)
+def calc_iou(mesh_a, mesh_b, point_num):
+
+    if isinstance(mesh_a, str):
+        mesh_a = o3d.io.read_triangle_mesh(mesh_a)
+    if isinstance(mesh_b, str):
+        mesh_b = o3d.io.read_triangle_mesh(mesh_b)
+
     uniform_points = (np.random.rand(int(point_num*0.2), 3) * 2 - 1).astype(dtype=np.float32)
-    mesh_points_a = np.asarray(mesh_a.sample_points_uniformly(int(point_num*0.4)).points, dtype=np.float32)
-    mesh_points_a += 0.01 * np.random.randn(mesh_points_a.shape[0], 3)
-    mesh_points_b = np.asarray(mesh_b.sample_points_uniformly(int(point_num * 0.4)).points, dtype=np.float32)
-    mesh_points_b += 0.01 * np.random.randn(mesh_points_b.shape[0], 3)
-    iou_points = np.concatenate([uniform_points, mesh_points_a, mesh_points_b], axis=0)
+    points_a = np.asarray(mesh_a.sample_points_uniformly(int(point_num*0.4)).points, dtype=np.float32)
+    points_a += 0.01 * np.random.randn(points_a.shape[0], 3)
+    points_b = np.asarray(mesh_b.sample_points_uniformly(int(point_num * 0.4)).points, dtype=np.float32)
+    points_b += 0.01 * np.random.randn(points_b.shape[0], 3)
+    iou_points = np.concatenate([uniform_points, points_a, points_b], axis=0)
     occ_a = calc_implicit_field(mesh_a, points=iou_points).reshape(-1)
     occ_b = calc_implicit_field(mesh_b, points=iou_points).reshape(-1)
     occ_a = (occ_a < 0)
     occ_b = (occ_b < 0)
+
     return (occ_a & occ_b).astype(np.float32).sum(axis=-1) / (occ_a | occ_b).astype(np.float32).sum(axis=-1)
 
 
-def calc_distance_error(filename_source, filename_target, pnt_source, pnt_target, r, point_num):
-    mesh_source = o3d.io.read_triangle_mesh(filename_source)
-    mesh_target = o3d.io.read_triangle_mesh(filename_target)
+def calc_local_distance(mesh_a, mesh_b, points_a, points_b, r, point_num, metric='IoU'):
+
+    if points_a.shape != points_b.shape:    # expect to be num*3
+        raise ArithmeticError("The 'points_a' and 'points_b' should have the same shape!")
+
+    if isinstance(mesh_a, str):
+        mesh_a = o3d.io.read_triangle_mesh(mesh_a)
+    if isinstance(mesh_b, str):
+        mesh_b = o3d.io.read_triangle_mesh(mesh_b)
     points = (np.random.rand(point_num, 3) * 2 - 1).astype(dtype=np.float32) * r  # num*3, [-r, r]^3
-    distance_iou, distance_chamfer = 0, 0
-    for i in range(pnt_source.shape[0]):
-        source = points+pnt_source[i]
-        target = points+pnt_target[i]
-        occ_source = calc_implicit_field(mesh_source, points=source).reshape(-1)
-        occ_target = calc_implicit_field(mesh_target, points=target).reshape(-1)
+    distance = 0
 
-        # L2 distance
-        #distance += ((occ_target - occ_source)**2).mean()
+    for i in range(points_a.shape[0]):
+        occ_source = calc_implicit_field(mesh_a, points=points+points_a[i]).reshape(-1)
+        occ_target = calc_implicit_field(mesh_b, points=points+points_b[i]).reshape(-1)
+        if metric == 'IoU':
+            occ_source = occ_source < 0
+            occ_target = occ_target < 0
+            distance += (occ_source & occ_target).astype(np.float32).sum(axis=-1) / (
+                    occ_source | occ_target).astype(np.float32).sum(axis=-1)
+        elif metric == 'L2':
+            distance += ((occ_target - occ_source) ** 2).mean()
+        elif metric == 'CD':
+            pass
 
-        # IoU metric
-        occ_source = occ_source < 0
-        occ_target = occ_target < 0
-        distance_iou += (occ_source & occ_target).astype(np.float32).sum(axis=-1) / (occ_source | occ_target).astype(np.float32).sum(axis=-1)
-
-        # Chamfer Distance
-        # source = source[occ_source]
-        # target = target[occ_target]
-        # kdtree_a = cKDTree(source)
-        # dist_a, _ = kdtree_a.query(target)
-        # chamfer_a = np.mean(np.square(dist_a))
-        # kdtree_b = cKDTree(target)
-        # dist_b, _ = kdtree_b.query(source)
-        # chamfer_b = np.mean(np.square(dist_b))
-        # distance_chamfer += chamfer_a + chamfer_b
-
-    return distance_iou/pnt_source.shape[0]
+    return distance/points_a.shape[0]
 
 
 def calc_mesh_points_normals(mesh, pcd=None):
@@ -155,34 +158,10 @@ def cloud2mesh():
                 print("****************************", file_path)
 
 
-def crop_images_rgb(path):
-    # from skimage import io
-    # image_origin = np.stack([io.imread(image) for image in path], axis=0)
-    # image = image_origin.mean(-1)
-    # print(image_origin.shape, image.shape)
-    # image[image < 255] = 1
-    # image[image > 1] = 0
-    # image = image.max(0)
-    # axis_x = np.nonzero(image.max(0))
-    # left_bound, right_bound = axis_x[0][0], axis_x[0][-1]
-    # axis_y = np.nonzero(image.max(1))
-    # top_bound, bottom_bound = axis_y[0][0], axis_y[0][-1]
-    # crop_image = image_origin[:, top_bound:bottom_bound+1, left_bound:right_bound+1, :]
-    # for i in range(crop_image.shape[0]):
-    #     io.imsave('%d.png'%i, crop_image[i])
-
-    from skimage import io
-    path_list = os.listdir(path)
-    image_origin = np.stack([io.imread(os.path.join(path, image)) for image in path_list], axis=0)  # n*h*w*3
-    top_bound, bottom_bound, left_bound, right_bound = 86, 996, 148, 824
-    crop_image = image_origin[:, top_bound:bottom_bound+1, left_bound:right_bound+1, :]
-    os.makedirs(os.path.join(path, 'Resize'))
-    for i in range(crop_image.shape[0]):
-        io.imsave(os.path.join(path, 'Resize', path_list[i]), crop_image[i])
-
-
+# crop images with the same region
 def crop_images_rgba(path):
     from skimage import io
+
     path_list = os.listdir(path)
     image_origin = np.stack([io.imread(os.path.join(path, image)) for image in path_list], axis=0)  # n*h*w*4
     image_alpha = image_origin[..., -1].copy()  # n*h*w
@@ -192,32 +171,17 @@ def crop_images_rgba(path):
     left_bound, right_bound = axis_x[0][0], axis_x[0][-1]
     axis_y = np.nonzero(image_alpha.max(1))
     top_bound, bottom_bound = axis_y[0][0], axis_y[0][-1]
-    # print(top_bound, bottom_bound, left_bound, right_bound)
-    # return
     crop_image = image_origin[:, top_bound:bottom_bound+1, left_bound:right_bound+1, :]
     os.makedirs(os.path.join(path, 'Resize'))
+
     for i in range(crop_image.shape[0]):
         io.imsave(os.path.join(path, 'Resize', path_list[i]), crop_image[i])
 
 
-def crop_images_rgba_each(path):
-    # from skimage import io
-    # path_list = os.listdir(path)
-    # image_origin = np.stack([io.imread(os.path.join(path, image)) for image in path_list], axis=0)  # n*h*w*4
-    # image_alpha = image_origin[..., -1].copy()  # n*h*w
-    # image_alpha[image_alpha > 0] = 1
-    # image_alpha_x = image_alpha.max(1).astype(np.bool_)  # n*w
-    # left_bound = np.argmax(image_alpha_x, axis=1)  # (n, )
-    # right_bound = image_alpha_x.shape[1] - 1 - np.argmax(image_alpha_x[::-1], axis=1)  # (n, )
-    # image_alpha_y = image_alpha.max(2).astype(np.bool_)  # n*h
-    # top_bound = np.argmax(image_alpha_y, axis=1)  # (n, )
-    # bottom_bound = image_alpha_y.shape[1] - 1 - np.argmax(image_alpha_y[::-1], axis=1)  # (n, )
-    # os.makedirs(os.path.join(path, 'Resize1'))
-    # print(left_bound, right_bound, top_bound, bottom_bound)
-    # for i in range(image_alpha.shape[0]):
-    #     io.imsave(os.path.join(path, 'Resize1', path_list[i]), image_origin[i][top_bound[i]:bottom_bound[i]+1, left_bound[i]:right_bound[i]+1, :])
-
+# crop each single image by bbox
+def crop_images_rgba_each(path, save_format='png'):
     from skimage import io
+
     for name in os.listdir(path):
         image_origin = io.imread(os.path.join(path, name))  # h*w*4
         image_alpha = image_origin[..., -1].copy()  # h*w
@@ -228,30 +192,20 @@ def crop_images_rgba_each(path):
         image_alpha_y = image_alpha.max(1).astype(np.bool_)  # h
         top_bound = np.argmax(image_alpha_y)  # (n, )
         bottom_bound = image_alpha_y.shape[0] - 1 - np.argmax(image_alpha_y[::-1])
-        os.makedirs(os.path.join(path, 'Resize'), exist_ok=True)
-        io.imsave(os.path.join(path, 'Resize', name), image_origin[top_bound:bottom_bound + 1, left_bound:right_bound + 1, :])
 
-
-def crop_rgba_jpg(path):
-    from skimage import io
-    from PIL import Image
-    for name in os.listdir(path):
-        # if not name.startswith('test7-12'):
-        #     continue
-        image_origin = io.imread(os.path.join(path, name))  # h*w*4
-        image_alpha = image_origin[..., -1].copy()  # h*w
-        image_alpha[image_alpha > 0] = 1
-        image_alpha_x = image_alpha.max(0).astype(np.bool_)  # w
-        left_bound = np.argmax(image_alpha_x)  # (n, )
-        right_bound = image_alpha_x.shape[0] - 1 - np.argmax(image_alpha_x[::-1])
-        image_alpha_y = image_alpha.max(1).astype(np.bool_)  # h
-        top_bound = np.argmax(image_alpha_y)  # (n, )
-        bottom_bound = image_alpha_y.shape[0] - 1 - np.argmax(image_alpha_y[::-1])
-        os.makedirs(os.path.join(path, 'jpg'), exist_ok=True)
-        image = Image.fromarray(image_origin[top_bound:bottom_bound + 1, left_bound:right_bound + 1])
-        white_background = Image.new('RGB', image.size, (255, 255, 255))
-        white_background.paste(image, mask=image.split()[3])
-        white_background.convert('RGB').save(os.path.join(path, 'jpg', name).replace('.png', '.jpg'), 'JPEG')
+        if save_format == 'png':
+            os.makedirs(os.path.join(path, 'png'), exist_ok=True)
+            io.imsave(os.path.join(
+                path, 'png', name), image_origin[top_bound:bottom_bound + 1, left_bound:right_bound + 1, :])
+        elif save_format == 'jpg':
+            from PIL import Image
+            os.makedirs(os.path.join(path, 'jpg'), exist_ok=True)
+            image = Image.fromarray(image_origin[top_bound:bottom_bound + 1, left_bound:right_bound + 1])
+            white_background = Image.new('RGB', image.size, (255, 255, 255))
+            white_background.paste(image, mask=image.split()[3])
+            white_background.convert('RGB').save(os.path.join(path, 'jpg', name).replace('.png', '.jpg'), 'JPEG')
+        else:
+            raise NotImplementedError("Unsupported image format")
 
 
 def down_sample(path):
@@ -295,7 +249,8 @@ def arap():
     static_pos = []
     for id in static_ids:
         static_pos.append(vertices[id])
-    handle_ids = [np.argmin(((vertices - np.array([0.5774046641377827, -0.19996981418962428, 0.025786472652074535]))**2).sum(-1))]
+    handle_ids = [np.argmin(((vertices - np.array(
+        [0.5774046641377827, -0.19996981418962428, 0.025786472652074535]))**2).sum(-1))]
     handle_pos = [np.array([0.5867314028280973, -0.049477389598448385, 0.018280856473317588])]
     constraint_ids = o3d.utility.IntVector(static_ids + handle_ids)
     constraint_pos = o3d.utility.Vector3dVector(static_pos + handle_pos)
@@ -318,9 +273,9 @@ def png_to_jpg(path):
         # rgb_image.save(os.path.join(path, name[:-4]+'.jpg'), 'JPEG')  #
 
         white_background = Image.new('RGB', image.size, (255, 255, 255))
-        # 将PNG图像粘贴到白色背景图像上
+
         white_background.paste(image, mask=image.split()[3])
-        # 将图像转换为JPEG格式并保存
+
         white_background.convert('RGB').save(os.path.join(path, name).replace('.png', '.jpg'), 'JPEG')
 
 
@@ -339,24 +294,7 @@ def vis_tri_feat():
 
 
 def main():
-    # crop_images_rgba_each(path='Supp/Generated Shape Edit/cars')
-    # png_to_jpg('Supp/Generated Shape Edit/chairs/Resize')
-    crop_rgba_jpg(path='Supp/Comparison/airplanes')
-    # down_sample('pics/ablation/limitation/Resize')
-    # crop_images_rgba(path='pics/ablation/opt-based')
-    # crop_images_rgb(path='pics/ablation/jpg')
-
-    # path = "./datas/layer-guidance/cars"
-    # err = np.random.rand(10, 4)
-    # for i in range(10, 20):
-    #     gt_filename = os.path.join(path, str(i), 'origin.obj')
-    #     for j in range(7, 11):
-    #         err[i-10, j-7] = calc_iou(gt_filename, filename_pre=os.path.join(path, str(i), 'layer%d.obj'%j), point_num=200000)
-    # for j in range(4):
-    #     print(j+7, err[:, j].tolist())
-    # calc_sphere_center()
-    # arap()
-    # vis_tri_feat()
+    crop_images_rgba_each(path='Supp/Comparison/airplanes')
 
 
 if __name__ == "__main__":
