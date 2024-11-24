@@ -5,7 +5,6 @@ from open3d.visualization import gui
 from open3d.visualization import rendering
 import numpy as np
 from drag_utils import DragStuff
-import torch as th
 import threading
 from skimage import io
 
@@ -15,12 +14,12 @@ class App:
         self._id = 0
         gui.Application.instance.initialize()
 
-        self.window = gui.Application.instance.create_window("iShapEditing", 800, 600)
+        self.window = gui.Application.instance.create_window("iShapEditing", 2000, 1500)
         w = self.window
         em = w.theme.font_size
 
         # Panel Window
-        self._panel = gui.Vert(3*em, gui.Margins(0.25 * em, 0.25 * em, 0.25 * em, 0.254 * em))
+        self._panel = gui.Vert(4*em, gui.Margins(0.25 * em, 0.25 * em, 0.25 * em, 0.254 * em))
 
         # Model
         self._model_panel = gui.CollapsableVert('Model & Latent', em)
@@ -98,18 +97,25 @@ class App:
         self._drag_panel.add_child(self._train_panel)
         self._drag_panel.add_child(self._points_panel)
         self._params_panel = gui.Horiz()
-        self._grads_label = gui.Label('Scale')
+        self._grads_label = gui.Label('Gradient Scale')
         self._grads_scale_edit = gui.TextEdit()
         self._grads_scale_edit.text_value = "1200"
-        self._lambda_label = gui.Label('Lambda')
+        self._lambda_label = gui.Label('lambda')
         self._lambda_edit = gui.TextEdit()
         self._lambda_edit.text_value = '0.4'
-        self._params_panel.add_child(self._grads_label)
-        self._params_panel.add_child(self._grads_scale_edit)
+        self._r1_label = gui.Label('Radius')
+        self._r1_edit = gui.TextEdit()
+        self._r1_edit.text_value = '12'
+        self._params_panel.add_child(self._r1_label)
+        self._params_panel.add_child(self._r1_edit)
         self._params_panel.add_fixed(0.1*em)
         self._params_panel.add_child(self._lambda_label)
         self._params_panel.add_child(self._lambda_edit)
         self._drag_panel.add_child(self._params_panel)
+        self._grads_panel = gui.Horiz()
+        self._grads_panel.add_child(self._grads_label)
+        self._grads_panel.add_child(self._grads_scale_edit)
+        self._drag_panel.add_child(self._grads_panel)
         self._progress_panel = gui.Horiz()
         self._progres_bar = gui.ProgressBar()
         self._progres_bar.value = 0.0
@@ -117,9 +123,13 @@ class App:
         self._progress_panel.add_child(self._progres_label)
         self._progress_panel.add_child(self._progres_bar)
         self._drag_panel.add_child(self._progress_panel)
+        self._displacement_panel = gui.Horiz()
+        self._xyz_label = gui.Label('XYZ')
+        self._displacement_panel.add_child(self._xyz_label)
         self._vedit = gui.VectorEdit()
         self._vedit.vector_value = [0, 0, 0]
-        self._drag_panel.add_child(self._vedit)
+        self._displacement_panel.add_child(self._vedit)
+        self._drag_panel.add_child(self._displacement_panel)
         self._vedit_btn = gui.Button('Draw')
         self._drag_panel.add_child(self._vedit_btn)
 
@@ -167,6 +177,7 @@ class App:
         self._train_start_btn.set_on_clicked(self._train_start_callback)
         self._train_stop_btn.set_on_clicked(self._train_stop_callback)
         self._vedit_btn.set_on_clicked(self._on_vedit)
+        self._r1_edit.set_on_value_changed(self._r1_value_change_callback)
 
         # parameters
         self.source_pnt = []
@@ -206,6 +217,11 @@ class App:
             self.draw_point(target_point, rgb=(0, 0, 1), name="end" + str(len(self.target_pnt)))
             self.draw_arrow(self.source_pnt[-1], self.target_pnt[-1], name='line' + str(len(self.source_pnt)))
         self.draw_source_flag = not self.draw_source_flag
+
+    def _r1_value_change_callback(self, value):
+        self.drag_stuff.r1 = int(value)
+        self.drag_stuff.set_offset1(int(value))
+        print("set r1 value:", int(value))
 
     def _print_label_text_fun(self):
         self._print_label.text = self._print_label_text
@@ -262,17 +278,6 @@ class App:
             gui.Application.instance.post_to_main_thread(self.window, self._print_label_text_fun)
 
             def create_mesh():
-                # DDIM latent code
-                # if self._model_path.selected_index == 1:
-                #     noise = th.tensor(np.load('./datas/noise_chairs.npy'))
-                #     # noise = th.tensor(np.load('noise.npy'))
-                #     # noise = th.tensor(np.load('./datas/noise_gt_total.npy'))
-                # elif self._model_path.selected_index == 2:
-                #     noise = th.tensor(np.load('./datas/noise_cars.npy'))
-                # else:
-                #     noise = th.tensor(np.load('./datas/noise_planes.npy'))
-                # t = threading.Thread(target=self.drag_stuff.update_latent_params,
-                #                      args=(noise[[self._latent_view.int_value % noise.shape[0]]], ))
 
                 np.random.seed(self._latent_view.int_value)
                 t = threading.Thread(target=self.drag_stuff.update_latent_params,
@@ -317,7 +322,7 @@ class App:
             file_picker.add_filter('.ply', 'ply')
             file_picker.add_filter('.off', 'off')
             file_picker.add_filter('.stl', 'stl')
-            file_picker.set_path('./datas')
+            file_picker.set_path('./samples')
             file_picker.set_on_cancel(self._on_cancel)
             file_picker.set_on_done(self._save_mesh_done)
 
@@ -330,7 +335,7 @@ class App:
             file_picker = gui.FileDialog(gui.FileDialog.SAVE, "Save Pic...", self.window.theme)
             file_picker.add_filter('.png', 'png')
             file_picker.add_filter('.jpg', 'jpg')
-            file_picker.set_path('./datas')
+            file_picker.set_path('./samples')
             file_picker.set_on_cancel(self._on_cancel)
             file_picker.set_on_done(self._save_pic_done)
 
@@ -406,7 +411,7 @@ class App:
         file_picker.add_filter('.ply', 'ply')
         file_picker.add_filter('.off', 'off')
         file_picker.add_filter('.stl', 'stl')
-        file_picker.set_path('./datas')
+        file_picker.set_path('./samples')
         file_picker.set_on_cancel(self._on_cancel)
         file_picker.set_on_done(self._load_mesh_done)
 
@@ -439,10 +444,11 @@ class App:
 
         def mesh_inversion():
             if os.path.isfile(os.path.join(self.real_path, 'tri_feat.npy')):
-                t = threading.Thread(target=self.drag_stuff.train_triplane, kwargs={"tri_feat_path":os.path.join(self.real_path, 'tri_feat.npy')})
+                t = threading.Thread(target=self.drag_stuff.train_triplane,
+                                     kwargs={"tri_feat_path": os.path.join(self.real_path, 'tri_feat.npy')})
             else:
                 t = threading.Thread(target=self.drag_stuff.train_triplane,
-                                     kwargs={"mesh": self.mesh})
+                                     kwargs={"mesh": self.mesh, "path": self.real_path})
             t.start()
             t.join()
             self._print_label_text = 'Inversion Done!'
@@ -589,9 +595,6 @@ class App:
 
         def update_mesh_main():
             self.mesh_kdtree = o3d.geometry.KDTreeFlann(mesh)
-            # mesh.compute_vertex_normals()
-            # material = rendering.MaterialRecord()
-            # material.shader = 'normals'
             mesh.compute_vertex_normals()
             material = rendering.MaterialRecord()
             material.shader = 'defaultLit'
@@ -600,11 +603,6 @@ class App:
                 np.random.random(),
                 np.random.random(), 1.
             ]
-            # material.base_color = [
-            #     0.73,
-            #     0.56,
-            #     0.56, 1.
-            # ]
             if self._scene.scene.has_geometry('mesh'):
                 self._scene.scene.remove_geometry('mesh')
             self._scene.scene.add_geometry("mesh", mesh, material)

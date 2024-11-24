@@ -47,9 +47,9 @@ def main():
         parser.add_argument('--save_dir', type=str, default='samples/planes_samples',
                             help='Where to save generated samples.', required=False)
 
-    parser.add_argument('--num_samples', type=int, default=1,
+    parser.add_argument('--num_samples', type=int, default=8,
                         help='How many samples to generate.', required=False)
-    parser.add_argument('--batch_size', type=int, default=1,
+    parser.add_argument('--batch_size', type=int, default=8,
                         help='Batch size for the DDPM. Use a smaller batch size if GPU memory is low.', required=False)
     parser.add_argument('--num_steps', type=int, default=256,
                         help='Number of steps to take in deniosing process.', required=False)

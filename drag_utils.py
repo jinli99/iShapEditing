@@ -1,6 +1,5 @@
 import argparse
 import copy
-import time
 from argparse import Namespace
 import os
 
@@ -15,8 +14,6 @@ import torch as th
 from torch.utils.data import Dataset
 import torch.nn.functional as ff
 from tqdm import tqdm
-# from occupancy_field.intersector import check_mesh_contains
-from neural_field_diffusion.guided_diffusion.gaussian_diffusion import _extract_into_tensor
 from meshProcess import calc_implicit_field
 import open3d as o3d
 import numpy as np
@@ -210,6 +207,9 @@ class DragStuff:
         self.variance_noise = []
         self.feature_guidance = []
 
+    def set_offset1(self, r1):
+        self.offset1 = make_offsets(r1, self.device)
+
     def update_model_params(self, main_path):
 
         # load diffusion model
@@ -280,12 +280,11 @@ class DragStuff:
             return img
 
     def get_mesh(self, tri_feat=None, img=None, t=0):
+
         with th.no_grad():
             if tri_feat is None:
                 img = img if img is not None else (
                     th.randn((1, 96, self.args.image_size, self.args.image_size)).to(self.device))
-                # tri_feat = synthesize_latent(
-                #     self.model, self.diffusion, self.args, t1=t, img=img, clip_denoised=self.args.clip_denoised)["img"]
                 with th.no_grad():
                     for i in range(t - 1, -1, -1):
                         t1 = th.tensor([i], device=img.device)
@@ -297,6 +296,7 @@ class DragStuff:
             for i in range(3):
                 self.decoder.embeddings[i] = tri_feat[[i]]
             mesh = create_obj_o3d(self.decoder, 0, res=self.args.shape_resolution)
+
             return mesh.filter_smooth_simple(number_of_iterations=10)
 
     def training(self, sources=None, targets=None, scale=600, cof=0.2):
@@ -333,7 +333,7 @@ class DragStuff:
         xz_idx = content_idx[:, [2, 0]].cpu().tolist()
         xz_idx_mask = th.tensor(list(total_idx - set([tuple(i) for i in xz_idx])), device=self.device)
 
-        for i in range(self.args.w_time-1, -1, -1):
+        for i in tqdm(range(self.args.w_time-1, -1, -1)):
             if not self.train_flag:
                 stop_time = i + 1
                 break
@@ -394,12 +394,11 @@ class DragStuff:
 
                 # case3: no guidance
                 # img = outs["sample"].clone().detach()
-            if not i % 10:
-                print("Step%d done!" % i, grads1.max().item(), grads1.min().item(), grads1.norm().item(), loss.item())
+
             yield 1 - i / (self.args.w_time - 1.)
         self.mesh = self.get_mesh(img=img, t=stop_time)
 
-    def train_triplane(self, mesh=None, mesh_path=None, center_mesh=True, tri_feat_path=None, path=""):
+    def train_triplane(self, mesh=None, mesh_path=None, center_mesh=True, tri_feat_path=None, path='./'):
 
         if tri_feat_path is not None:
             with th.no_grad():
@@ -437,27 +436,16 @@ class DragStuff:
         total_points = np.concatenate([uniform_points, mesh_points], axis=0)
         occupancies = calc_implicit_field(mesh, points=total_points, sdf=False)
 
-        # pcd = o3d.geometry.PointCloud()
-        # pcd.points = o3d.utility.Vector3dVector(total_points[occupancies > 0.5])
-        # o3d.io.write_point_cloud('pcd.ply', pcd)
-        # return
-
         datas = OccupancyDatas(total_points, occupancies.reshape(-1, 1))
         dataloader = th.utils.data.DataLoader(datas, batch_size=40000, shuffle=True, num_workers=1)
 
         # classifier guidance based on predict x_start
         scale = 600
         img = th.randn((1, 96, self.args.image_size, self.args.image_size), dtype=th.float32, device=self.device)
-        # img = th.tensor(np.load('noise_DDIM.npy'), dtype=th.float32, device=self.device)
-        # img = th.tensor(np.load('tri_feat_1.npy'), dtype=th.float32, device=self.device)
-        # img = self.diffusion.q_sample(x_start=img, t=th.tensor([self.args.num_steps-1], device=self.device))
-        for i in range(self.args.num_steps-1, -1, -1):
+        for i in tqdm(range(self.args.num_steps-1, -1, -1)):
             img.requires_grad_(True)
             outs = self.diffusion.p_sample_guidance(self.model, img, th.tensor([i], device=self.device))
             predict_x0 = outs["pred_xstart"]
-            # if i in [120]:
-            #     o3d.io.write_triangle_mesh('mesh%d.obj' % i, self.get_mesh(predict_x0.clone().detach()))
-            #     np.save('img%d.npy'%i, predict_x0.cpu().detach().numpy())
             predict_x0 = (predict_x0 * self.range + self.middle).reshape(
                 3, 32, self.args.image_size, self.args.image_size)
             for j in range(3):
@@ -473,9 +461,6 @@ class DragStuff:
             with th.no_grad():
                 img = (outs["sample"] + outs["variance"] * grads).clone().detach()
                 assert outs["variance"].shape == grads.shape
-            if not i % 10:
-                # scale -= 100
-                print("Step%d done!" % i, grads1.max().item(), grads1.min().item(), grads1.norm().item(), loss.item())
 
         with th.no_grad():
             np.save(os.path.join(path, 'tri_feat.npy'), img.cpu().numpy())
@@ -485,24 +470,100 @@ class DragStuff:
         o3d.io.write_triangle_mesh(os.path.join(path, 'mesh_recon.obj'), self.mesh0)
         self.latent_inversion(tri_feat=img)
 
-    def latent_inversion(self, tri_feat, name='noise.npy'):
+    def train_triplane_opt(self, mesh=None, mesh_path=None, center_mesh=True, path="./"):
+        if mesh is not None:
+            mesh = mesh
+        elif mesh_path is not None:
+            mesh = o3d.io.read_triangle_mesh(mesh_path)
+        else:
+            return
+
+        if center_mesh:
+            # scale and translate the mesh into the [-1, 1]*[-1, 1]*[-1, 1]
+            max_bound, min_bound = mesh.get_max_bound(), mesh.get_min_bound()
+            axis_extent = max_bound - min_bound
+            if np.any(min_bound > 1) or np.any(min_bound < -1) or np.any(max_bound > 1) or np.any(max_bound < -1):
+                mesh.translate(-mesh.get_center())
+                if axis_extent.max() > 2:
+                    mesh.scale(2. / (axis_extent.max() + 1e-2), center=np.array([0., 0, 0]))
+
+        # sample points and calculate the occupancies or sdf values
+        points_size = 200000
+        points_uniform_ratio = 0.5
+        uniform_points_num = int(points_size * points_uniform_ratio)
+        uniform_points = (np.random.rand(uniform_points_num, 3) * 2 - 1).astype(dtype=np.float32)
+        mesh_points = np.asarray(
+            mesh.sample_points_uniformly(points_size - uniform_points_num).points, dtype=np.float32)
+        mesh_points += 0.01 * np.random.randn(mesh_points.shape[0], 3)
+        total_points = np.concatenate([uniform_points, mesh_points], axis=0)
+        occupancies = calc_implicit_field(mesh, points=total_points, sdf=False)
+        # occupancies[occupancies < 0.5] = -1
+        datas = OccupancyDatas(total_points, occupancies.reshape(-1, 1))
+        dataloader = th.utils.data.DataLoader(datas, batch_size=40000, shuffle=True, num_workers=4)
+
+        mean = th.tensor(np.load('models/chairs/statistics/chairs_triplanes_stats/means.npy'), dtype=th.float32,
+                         device=self.device).reshape(1, 96, 1, 1)
+        stds = th.tensor(np.load('models/chairs/statistics/chairs_triplanes_stats/stds.npy'), dtype=th.float32,
+                         device=self.device).reshape(1, 96, 1, 1)
+        tri_feat = (th.randn((1, 96, self.args.image_size, self.args.image_size),
+                             device=self.device) * stds + mean).reshape(3, 32, self.args.image_size,
+                                                                        self.args.image_size)
+
+        for i in range(3):
+            self.decoder.embeddings[i] = tri_feat[[i]].clone().detach().requires_grad_(True)
+        optimizer = th.optim.Adam(params=self.decoder.embeddings, lr=0.001, betas=(0.9, 0.999))
+        index = 0
+        for epoch in tqdm(range(20), ncols=80, colour='blue'):
+            for coord, gt in dataloader:
+                index += 1
+                coord = coord.to(self.device)
+                gt = gt.to(self.device)
+                prediction = self.decoder(0, coord.unsqueeze(0)).squeeze(0)
+                assert gt.shape == prediction.shape
+                loss = th.nn.BCEWithLogitsLoss()(prediction, gt)
+                rand_coord = th.rand_like(coord) * 2 - 1
+                rand_coord_offset = rand_coord + th.randn_like(rand_coord) * 1e-2
+                pre_rand_coord = self.decoder(0, rand_coord.unsqueeze(0)).squeeze(0)
+                pre_rand_coord_offset = self.decoder(0, rand_coord_offset.unsqueeze(0)).squeeze(0)
+                assert pre_rand_coord_offset.shape == pre_rand_coord.shape
+                loss += ff.mse_loss(pre_rand_coord, pre_rand_coord_offset) * 0.3
+                loss += self.decoder.l2reg() * 0.001
+                loss += self.decoder.tvreg() * 0.01
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+                # if not index % 50:
+                #     print(epoch, index, loss.item(), prediction.min().item(), prediction.max().item())
+            # if not (epoch + 1) % 1:
+            #     self.decoder.eval()
+            #     with th.no_grad():
+            #         mesh = create_obj_o3d(self.decoder, 0, res=self.args.shape_resolution)
+            #         o3d.io.write_triangle_mesh('mesh%d.obj' % epoch, mesh)
+
+        with th.no_grad():
+            for i in range(3):
+                tri_feat[[i]] = self.decoder.embeddings[i].clone().detach()
+            tri_feat = tri_feat.reshape(1, 96, self.args.image_size, self.args.image_size)
+            tri_feat = (tri_feat - self.middle) / self.range
+            # print(tri_feat.min().item(), tri_feat.max().item(), tri_feat.mean().item(), tri_feat.var().item())
+            np.save(os.path.join(path, 'tri_feat_opt.npy'), tri_feat.cpu().numpy())
+            o3d.io.write_triangle_mesh(os.path.join(path, 'mesh_opt.obj'), self.get_mesh(tri_feat))
+
+    def latent_inversion(self, tri_feat):
         with th.no_grad():
             outs = self.diffusion.ddpm_inversion(
                 self.model, tri_feat, self.args.w_time, clip_denoised=self.args.clip_denoised,
                 feat_layer=self.args.feat_layer)
             print('inversion done!')
             noise = outs["latent"]
-            # np.save(name, noise.cpu().numpy())
-            x = noise.cpu().numpy()
-            print(x.min(), x.max(), x.mean(), x.var())
         self.w = noise.clone().detach()
         self.w0 = self.w.clone().detach()
         self.feature_guidance = [
             resize_feat_align(inter_feat).clone().detach().cpu() for inter_feat in outs["inter_feat"]]
-        # self.mesh = self.get_mesh(tri_feat=outs["sample"])
-        # self.mesh0 = copy.deepcopy(self.mesh)
-        # self.variance = [variance.clone().detach().cpu() for variance in outs["variance"]]
-        # self.variance_noise = [i.clone().detach().cpu() for i in outs["variance_noise"]]
+        self.mesh = self.get_mesh(tri_feat=outs["sample"])
+        self.mesh0 = copy.deepcopy(self.mesh)
+        self.variance = [variance.clone().detach().cpu() for variance in outs["variance"]]
+        self.variance_noise = [i.clone().detach().cpu() for i in outs["variance_noise"]]
 
     def clear_params(self):
         self.mesh0 = None
@@ -520,43 +581,3 @@ class DragStuff:
             self.mesh = copy.deepcopy(self.mesh0)
         if self.w0 is not None:
             self.w = (self.w0.clone().detach()).requires_grad_(True)
-
-
-def main():
-
-    drag = DragStuff()
-    drag.update_model_params('./models/cars')
-    # drag.train_triplane_opt(mesh_path='./datas/ablation/opt-based/test1/test.obj')
-    drag.train_triplane(mesh_path='test5.obj', center_mesh=False)
-    # drag.update_latent_params()
-    # o3d.io.write_triangle_mesh('mesh.obj', drag.get_mesh(tri_feat=th.tensor(np.load('tri_feat.npy'), device=drag.device)))
-    # drag.latent_inversion_feat(tri_feat=th.tensor(np.load('tri_feat.npy'), device=drag.device))
-
-    """Test for mesh reconstruction on real shape datasets"""
-    # name_list = ["1b67a3a1101a9acb905477d2a8504646", "1b938d400e1a340b17b431cae0dd70ed", "1b05971a4373c7d2463600025db2266",
-    #              "1b80175cc081f3e44e4975e87c20ce53", "1b81441b7e597235d61420a53a0cb96d", "1b92525f3945f486fe24b6f1cb4a9319"]   # chairs id
-
-    # name_list = ["1a0bc9ab92c915167ae33d942430658c", "1a0c91c02ef35fbe68f60a737d94994a", "1a1dcd236a1e6133860800e6696b8284",
-    #              "1a1de15e572e039df085b75b20c2db33", "1a3b35be7a0acb2d9f2366ce3e663402", "1a4ef4a2a639f172f13d1237e1429e9e",
-    #              "1a7b9697be903334b99755e16c4a9d21", "1a7d2c9d3a084885afa2ee0adc62d22", "1a15dff06b073d7282a2d03a8c21b1d6",
-    #              "1a48d03a977a6f0aeda0253452893d75", "1a56d596c77ad5936fa87a658faf1d26", "1a63a260180f11baafe717997470b28d",
-    #              "1a64bf1e658652ddb11647ffa4306609", "1a83a525ae32afcf622ac2f50deaba1f", "1a87a329781b15763820d8f180caa23a",
-    #              "1a759c0122847d985c08d463d5424c88", "1a4337da899da1936909632a947fc19b", "1a7125aefa9af6b6597505fd7d99b613"]   # cars id
-    # name_list = ["1a30678509a1fdfa7fb5267a071ae23a", "1a19271683597db4fe7e6f8a8e38f62d", "1ab80bc91a45b7d0a31091d2234b9f68",
-    #              "1acfbda4ce0ec524bedced414fad522f", "1ad321f067ffbe7e51a95aaa6caba1d3", "1ae184691a39e3d3e0e8bce75d28b114"]
-
-    # name_list = ["1b90541c9d95d65d2b48e2e94b50fd01", "1b171503b1d0a074bc0909d98a1ff2b4", "1ba18539803c12aae75e6a02e772bcee",
-    #              "1bba3fb413b93890947bbeb9022263b8", "1bcbb0267f5f1d53c6c0edf9d2d89150", "1bdeb4aaa0aaea4b4f95630cc18536e0",
-    #              "1bea1445065705eb37abdc1aa610476c", "1beb0776148870d4c511571426f8b16d", "1c2e9dedbcf511e616a077c4c0fc1181"]    # planes
-    # path = "/media/jing/I/datas/airplanes"
-    # drag = DragStuff()
-    # drag.update_model_params('./models/planes')
-    # for name in name_list:
-    #     mesh_path = os.path.join(path, name)
-    #     drag.train_triplane(mesh_path=os.path.join(mesh_path, 'mesh_scale_smooth.obj'), center_mesh=False, path=mesh_path)
-    #     print(mesh_path, "done!")
-
-
-if __name__ == "__main__":
-    main()
-

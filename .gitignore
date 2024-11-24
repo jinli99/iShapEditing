@@ -1,20 +1,7 @@
-/datas/ablation/
-/datas/comparison/
-/datas/generated-shape-edit/
-/datas/layer-guidance/
-/datas/real-shape-edit/
-/datas/classifer guidance.jpg
-/datas/cycle-SDE.png
-/datas/DDPM.png
-/datas/notes
-/datas/results.odp
-/datas/results-1.odp
-/datas/score.ods
-/datas/shape
 /Linux/
 /models/cars/
 /models/chairs/
 /models/planes/
 /pics/
-/samples/
 /Supp/
+/datas/
