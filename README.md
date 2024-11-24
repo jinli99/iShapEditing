@@ -35,7 +35,7 @@ Download the pre-trained Triplane Diffusion models from this [link](https://gith
 ## GUI Usage
 Simple demo
 <p align="center">
-<video src="images/gui.mp4" controls="controls" style="max-width: 100%; height: auto;">
+<video src="images/gui.gif" controls="controls" style="max-width: 100%; height: auto;">
     Your browser does not support the video tag.
 </video>
 </p>
