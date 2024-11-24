@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="PYTHON_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <excludeFolder url="file://$MODULE_DIR$/Linux" />
+      <excludeFolder url="file://$MODULE_DIR$/Supp" />
+      <excludeFolder url="file://$MODULE_DIR$/datas/ablation" />
+      <excludeFolder url="file://$MODULE_DIR$/datas/comparison" />
+      <excludeFolder url="file://$MODULE_DIR$/datas/generated-shape-edit" />
+      <excludeFolder url="file://$MODULE_DIR$/datas/layer-guidance" />
+      <excludeFolder url="file://$MODULE_DIR$/datas/real-shape-edit" />
+      <excludeFolder url="file://$MODULE_DIR$/models/cars" />
+      <excludeFolder url="file://$MODULE_DIR$/models/chairs" />
+      <excludeFolder url="file://$MODULE_DIR$/models/planes" />
+      <excludeFolder url="file://$MODULE_DIR$/pics" />
+      <excludeFolder url="file://$MODULE_DIR$/datas" />
+    </content>
+    <orderEntry type="jdk" jdkName="iShapEditing" jdkType="Python SDK" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+  <component name="PyDocumentationSettings">
+    <option name="format" value="PLAIN" />
+    <option name="myDocStringFormat" value="Plain" />
+  </component>
+</module>

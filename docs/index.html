@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="Deformable Neural Radiance Fields creates free-viewpoint portraits (nerfies) from casually captured videos.">
+  <meta name="keywords" content="Nerfies, D-NeRF, NeRF">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iShapEditing: Intelligent Shape Editing with Diffusion Model</title>
+
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-PYVRSFMDRL"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+
+    gtag('js', new Date());
+
+    gtag('config', 'G-PYVRSFMDRL');
+  </script>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+  <link rel="icon" href="./static/images/favicon.svg">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script src="./static/js/bulma-carousel.min.js"></script>
+  <script src="./static/js/bulma-slider.min.js"></script>
+  <script src="./static/js/index.js"></script>
+</head>
+<body>
+
+<nav class="navbar" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false">
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+    </a>
+  </div>
+  <div class="navbar-menu">
+
+  </div>
+</nav>
+
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">iShapEditing: Intelligent Shape Editing with Diffusion Models</h1>
+          <p class="is-size-6 has-text-weight-medium" style="margin-top: 10px; margin-bottom: 20px;">
+            Computer Graphics Forum (PG 2024)
+          </p>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a>Jing Li</a><sup>1</sup>,</span>
+            <span class="author-block">
+              <a href="http://staff.ustc.edu.cn/~juyong/">Juyong Zhang</a><sup>1</sup>,</span>
+            <span class="author-block">
+              <a href="http://staff.ustc.edu.cn/~chenfl/english.htm">Falai Chen</a><sup>1</sup>,
+            </span>
+          </div>
+
+          <div class="is-size-5 publication-authors">
+            <span class="author-block"><sup>1</sup>University of Science and Technology of China,</span>
+          </div>
+
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <!-- PDF Link. -->
+              <span class="link-block">
+                <a href="https://onlinelibrary.wiley.com/doi/abs/10.1111/cgf.15253"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fas fa-file-pdf"></i>
+                  </span>
+                  <span>Paper</span>
+                </a>
+              </span>
+              <!-- Code Link. -->
+              <span class="link-block">
+                <a href="https://github.com/jinli99/iShapEditing"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-github"></i>
+                  </span>
+                  <span>Code</span>
+                  </a>
+              </span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="hero teaser">
+
+    <div class="container is-max-desktop">
+    <div class="hero-body">
+      <video id="teaser" autoplay muted loop playsinline height="100%">
+        <source src="./static/images/gui.mp4"
+                type="video/mp4">
+      </video>
+      <h2 class="subtitle has-text-centered">
+      </h2>
+    </div>
+  </div>
+
+  <div class="container is-max-desktop">
+    <div class="hero-body">
+      <img id="teaser-image" src="./static/images/pipeline.png" alt="Teaser Image" style="height: 100%; width: auto;">
+      <h2 class="subtitle has-text-centered">
+        <span class="dnerf">iShapEditing</span> leverages a pre-trained Triplane Diffusion model to guide points toward their corresponding targets while preserving realism.
+      </h2>
+    </div>
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            We introduce iShapEditing, a novel framework for 3D shape editing which is applicable to both generated and real shapes.
+            Users manipulate shapes by dragging handle points to corresponding targets, offering an intuitive and intelligent editing interface.
+          </p>
+          <p>
+            Leveraging the Triplane Diffusion model and robust intermediate feature correspondence,
+            our framework utilizes classifier guidance to adjust noise representations during sampling process,
+            ensuring alignment with user expectations while preserving plausibility. For real shapes,
+            we employ shape predictions at each time step alongside a DDPM-based inversion algorithm to derive their latent codes,
+            facilitating seamless editing.
+          </p>
+          <p>
+            iShapEditing provides effective and intelligent control over shapes without the need for additional model
+            training or fine-tuning. Experimental examples demonstrate the effectiveness and superiority of our method
+            in terms of editing accuracy and plausibility.
+          </p>
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+
+    <!-- Paper video. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Video</h2>
+        <div class="publication-video">
+        <iframe width="560" height="315" src="https://www.youtube.com/embed/bvl1UguryWc?si=ghZYWZmnVccMTw1d" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        </div>
+      </div>
+    </div>
+    <!--/ Paper video. -->
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+
+    <div class="columns is-centered">
+
+      <!-- Visual Effects. -->
+      <div class="column">
+        <div class="content">
+          <h2 class="title is-3">Generated Shape Editing</h2>
+          <p>
+            Users simply need to select certain handle points(marked in red) and their target points (marked in blue).
+            Our method accurately moves these handle points to reach their corresponding targets while maintaining shape plausibility.
+          </p>
+          <img id="generated" src="./static/images/generated.png" alt="Teaser Image" style="height: 100%; width: auto;">
+        </div>
+      </div>
+      <!--/ Visual Effects. -->
+
+      <!-- Matting. -->
+      <div class="column">
+        <h2 class="title is-3">Real Shape Editing</h2>
+        <div class="columns is-centered">
+          <div class="column content">
+            <p>
+              For a user-supplied watertight shape, we first guide the generation of an ``in-distribution'' triplane
+              representation and employ a DDPM-based inversion algorithm to derive its latent code. Then we perform the dragging process.
+            </p>
+            <img id="real" src="./static/images/real.png" alt="Teaser Image" style="height: 73.5%; width: auto;">
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <!--/ Matting. -->
+
+      <div class="columns is-centered">
+
+      <!-- Visual Effects. -->
+      <div class="column">
+        <div class="content">
+          <h2 class="title is-3">Long Distance Dragging</h2>
+          <p>
+            For distant target points, we guide handle points towards their targets step-by-step.
+          </p>
+          <img id="long" src="./static/images/long.png" alt="Teaser Image" style="height: auto; width: 85%;">
+        </div>
+      </div>
+      <!--/ Visual Effects. -->
+
+      <!-- Matting. -->
+      <div class="column">
+        <h2 class="title is-3">Other Editing Operations</h2>
+        <div class="columns is-centered">
+          <div class="column content">
+            <p>
+              Our approach can be extended to a wider range of shape editing operations, such as copy and delete.
+            </p>
+            <img id="other" src="./static/images/other.png" alt="Teaser Image" style="height: 65%; width: auto;">
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <!--/ Matting. -->
+
+    <!-- Concurrent Work. -->
+    <div class="columns is-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">Related Links</h2>
+
+        <div class="content has-text-justified">
+          <p>
+            <a href="https://github.com/JRyanShue/NFD">Triplane Diffusion Model</a>
+          </p>
+          <p>
+            <a href="https://github.com/XingangPan/DragGAN">DragGAN</a>
+          </p>
+
+        </div>
+      </div>
+    </div>
+    <!--/ Concurrent Work. -->
+
+  </div>
+</section>
+
+
+<section class="section" id="BibTeX">
+  <div class="container is-max-desktop content">
+    <h2 class="title">BibTeX</h2>
+    <pre><code>@inproceedings{li2024ishapediting,
+  title={iShapEditing: Intelligent Shape Editing with Diffusion Models},
+  author={Li, Jing and Zhang, Juyong and Chen, Falai},
+  booktitle={Computer Graphics Forum},
+  pages={e15253},
+  year={2024},
+  organization={Wiley Online Library}
+}
+</code></pre>
+  </div>
+</section>
+
+
+<footer class="footer">
+  <div class="container" style="text-align: center;">
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content">
+          <p>
+            Source code mainly based on <a href="https://nerfies.github.io/">Nerfies website</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
