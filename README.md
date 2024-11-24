@@ -5,7 +5,7 @@
 
 Abstract: *Recent advancements in generative models have enabled image editing very effective with impressive results. By extending this progress to 3D geometry models, we introduce iShapEditing, a novel framework for 3D shape editing which is applicable to both generated and real shapes. Users manipulate shapes by dragging handle points to corresponding targets, offering an intuitive and intelligent editing interface. Leveraging the Triplane Diffusion model and robust intermediate feature correspondence, our framework utilizes classifier guidance to adjust noise representations during sampling process, ensuring alignment with user expectations while preserving plausibility. For real shapes, we employ shape predictions at each time step alongside a DDPM-based inversion algorithm to derive their latent codes, facilitating seamless editing. iShapEditing provides effective and intelligent control over shapes without the need for additional model training or fine-tuning. Experimental examples demonstrate the effectiveness and superiority of our method in terms of editing accuracy and plausibility.*
 
-[[Project Page]]() | [[Paper]](https://onlinelibrary.wiley.com/doi/abs/10.1111/cgf.15253)
+[[Project Page]](https://jinli99.github.io/iShapEditing/) | [[Paper]](https://onlinelibrary.wiley.com/doi/abs/10.1111/cgf.15253)
 
 ## Features
 - 🎯 Intuitive point-based shape editing interface
