@@ -5,12 +5,23 @@
 
 Abstract: *Recent advancements in generative models have enabled image editing very effective with impressive results. By extending this progress to 3D geometry models, we introduce iShapEditing, a novel framework for 3D shape editing which is applicable to both generated and real shapes. Users manipulate shapes by dragging handle points to corresponding targets, offering an intuitive and intelligent editing interface. Leveraging the Triplane Diffusion model and robust intermediate feature correspondence, our framework utilizes classifier guidance to adjust noise representations during sampling process, ensuring alignment with user expectations while preserving plausibility. For real shapes, we employ shape predictions at each time step alongside a DDPM-based inversion algorithm to derive their latent codes, facilitating seamless editing. iShapEditing provides effective and intelligent control over shapes without the need for additional model training or fine-tuning. Experimental examples demonstrate the effectiveness and superiority of our method in terms of editing accuracy and plausibility.*
 
-[Project Page](),   [Paper](https://onlinelibrary.wiley.com/doi/abs/10.1111/cgf.15253)
+[[Project Page]]() | [[Paper]](https://onlinelibrary.wiley.com/doi/abs/10.1111/cgf.15253)
 
-## Install
+## Features
+- 🎯 Intuitive point-based shape editing interface
+- 🔄 Support both generated and real shapes
+- 🚫 No additional training or fine-tuning required
+- 🎨 Compatible with multiple shape categories (chair/car/airplane)
+- 💪 Robust shape preservation during editing
 
-Install PyTorch and other dependencies:
+## Installation
+Clone this repository
+```bash
+git clone https://github.com/jinli99/iShapEditing
+cd iShapEditing
+```
 
+Create conda environment and install dependencies
 ```
 conda create --name iShapEditing python=3.10 -y
 conda activate iShapEditing
@@ -29,7 +40,7 @@ Simple demo
 </video>
 </p>
 
-Step 1: Run following instruction to setup the GUI interface:
+Step 1: **Launch the GUI**
 ```
 python main.py
 ```
@@ -37,20 +48,26 @@ python main.py
     <img src="images/gui.png" alt="GUI Image" style="width:50%; height:auto;">
 </p>
 
-Step 2: Choose the model (chair/car/airplane).
+Step 2: **Choose model category (chair/car/airplane)**.
 
-Step 3: Get source shape:
-- For the generated shape, click the `Create Mesh` button.
-- For the real shape, click the `Load Mesh` button to load your shape. And then click the `Inversion` to do the triplane reconstruction and inversion. 
+Step 3: **Source shape initialization**
+- For generated shapes: click the `Create Mesh` to generate a random shape.
+- For real shapes: click the `Load Mesh` to import your mesh file. And then click the `Inversion` to perform triplane reconstruction and inversion. 
 
-Step 4: Input handle points and target points. You have two ways to input the points:
-- Push the `ctrl` keyboard and click left mouse to select point.
-- Input the coordinate in the vector editor `XYZ` and then click the `Draw` button. Notice that when the last selection is the source points, then this XYZ value is the displacement of the next target point from last source point.
+Step 4: **Control points placement**
+   - Source Points: Define handle positions on the shape.
+   - Target Points: Specify desired destinations.
+   - Two input methods:
+     * Direct selection: Hold `Ctrl` + Left click on shape surface.
+     * Manual input: 
+       - Enter coordinates in XYZ editor.
+       - Click `Draw` to confirm.
+       > Note: For target points, XYZ values represent relative displacement from corresponding source points
 
-Step 5: Click the 'Start' button to start the dragging process.
+Step 5: Click `Start` to execute editing.
 
 ## Citation
-If you find our work useful in your research, please cite the following paper
+If you find our work useful in your research, please cite:
 ```
 @inproceedings{li2024ishapediting,
   title={iShapEditing: Intelligent Shape Editing with Diffusion Models},
